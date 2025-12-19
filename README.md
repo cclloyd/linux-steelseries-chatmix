@@ -1,6 +1,6 @@
-# Linux-Arctis-7-Plus-ChatMix
+# Linux SteelSeries ChatMix
 
-**Now supports both SteelSeries Arctis 7+ and Nova 7 WOW Edition headsets!**
+Forked from [awth13/Linux-Arctis-7-Plus-ChatMix](https://github.com/awth13/Linux-Arctis-7-Plus-ChatMix).
 
 ##***Important Licensing Notice**##
 
@@ -30,24 +30,18 @@ software does not currently support Linux.
 This script provides a basic workaround for this problem for Linux users. It creates a Virtual Audio Cable (VAC) pair called "Arctis 7+ Chat"
 and "Arctis 7+ Game" respectively, which the user can then assign accordingly as they would have done with an older Arctis model.
 
-**Supported Devices:**
+**Known Supported Devices:**
 - SteelSeries Arctis 7+ (Product ID: 0x220e)
-- SteelSeries Nova 7 WOW Edition (Product ID: 0x227a) 
+- SteelSeries Nova 7 WOW Edition (Product ID: 0x227a)
+- SteelSeries Nova 7 (Product ID: 0x2202)
+- It should work with any SteelSeries Arctis 7 family headset
+
 The script listens to the headset's USB dongle signals and interprets them in a way that can be meaningfully converted
 to adjust the audio when the user moves the dial on the headset.
 
-### Two Versions ###
+###  ###
 
-`install-a7pcm.sh` installs a daemon which ensures the chatmix dial controls the ChatMix balance on the headset.
-
-Alternatively, use `install-AllSound7P_ChatMix.sh` installs a different version which will control the ChatMix balance
-on *any* default system device, e.g. speakers etc.
-
-For both versions at startup of the daemon the user must disconnect and reconnect the USB dongle from the machine. 
-
-For the AllSound version, ensure the device you wish to output sound to is set as the default device before reconnecting the dongle.
-
-For the Arctis version, the headset will be automatically set to the default device when the daemon starts.
+At startup of the daemon the user must disconnect and reconnect the USB dongle from the machine. The headset will be automatically set to the default device when the daemon starts.
 
 <br>
 
@@ -66,6 +60,9 @@ which are both fairly common on modern Linux systems out of the box.
 
 Python 3 & [PyUSB](https://github.com/pyusb/pyusb) required. 
 
+- Debian/Ubuntu: `sudo apt install python3-usb`
+- Pip: `pip3 install pyusb`
+
 Run `install-a7pcm.sh` as your desktop user in the project root directory. You may need to provide your `sudo` password during installation for copying the udev rule for your device.
 
 **DISCONNECT DEVICE BEFORE INSTALLING**
@@ -73,7 +70,7 @@ Run `install-a7pcm.sh` as your desktop user in the project root directory. You m
 To uninstall, set the `UNINSTALL` environment variable while calling the install script, e.g.,
 
 ```bash
-UNINSTALL= ./install-a7pcm.sh
+UNINSTALL= ./install.sh
 ```
 
 **RECONNECT DEVICE ONCE INSTALL IS COMPLETE**
