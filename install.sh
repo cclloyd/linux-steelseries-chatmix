@@ -6,6 +6,7 @@
 #     https://github.com/birdybirdonline
 #     https://github.com/awth13
 
+set -e
 
 if [ "$(id -u)" -ne 0 ]; then
     echo "Please run the install script as root."
@@ -30,10 +31,3 @@ else
     fi
 fi
 
-
-#echo "Installing script to ${SCRIPT_DIR}${SCRIPT}."
-#if [[ ! -d "$SCRIPT_DIR" ]]; then
-#    mkdir -vp $SCRIPT_DIR || \
-#        { echo "FATAL: Failed to create $SCRIPT_DIR" ; cleanup ; exit 1;}
-#fi
-#cp "$SCRIPT" "$SCRIPT_DIR"
