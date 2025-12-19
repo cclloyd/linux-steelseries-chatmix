@@ -21,7 +21,7 @@ if [ -f "chatmix.py" ]; then # Check if binary is present and install manually
     cp "$SCRIPT" "$SCRIPT_DIR"
 else
     echo "Installing from GitHub..."
-    curl -L -o "${SCRIPT_DIR}chatmix" "https://github.com/Birbwell/linuxmix/raw/refs/heads/main/chatmix.py"
+    curl -L -o "${SCRIPT_DIR}chatmix" "https://raw.githubusercontent.com/cclloyd/linux-steelseries-chatmix/refs/heads/main/chatmix.py"
     if [ $? -eq 0 ]; then
         echo "Successfully downloaded chatmix.py to ${SCRIPT_DIR}"
     else
