@@ -1,3 +1,4 @@
+#!/bin/bash
 #     Copyright (C) 2022  birdybirdonline & awth13 - see LICENSE.md
 #     @ https://github.com/birdybirdonline/Linux-Arctis-7-Plus-ChatMix
     
@@ -5,7 +6,6 @@
 #     https://github.com/birdybirdonline
 #     https://github.com/awth13
 
-#!/bin/bash
 
 if [[ "$USER" == root ]]; then
     echo "Please run the install script as non-root user."
