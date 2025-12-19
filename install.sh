@@ -7,7 +7,7 @@
 #     https://github.com/awth13
 
 
-if ! [[ "$USER" == root ]]; then
+if [ "$(id -u)" -ne 0 ]; then
     echo "Please run the install script as root."
     exit 1
 fi
