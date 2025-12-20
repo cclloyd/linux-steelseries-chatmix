@@ -14,6 +14,9 @@ required to use it.
 
 ## Overview
 <br>
+
+This is a wrapper that helps to manage the service provided by the Linux-Arctis-7-Plus-ChatMix repo.  It facitilates setting udev rules and managing the systemd service. And supports automatic detection of more headsets.
+
 The SteelSeries Arctis series of headsets include a hardware modulation knob for 'chatmix' on the headset.
 This allows the user to 'mix' the volume of two different devices on their system, named "Game" and "Chat".
 
