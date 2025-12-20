@@ -2,7 +2,7 @@
 
 Forked from [awth13/Linux-Arctis-7-Plus-ChatMix](https://github.com/awth13/Linux-Arctis-7-Plus-ChatMix).
 
-##***Important Licensing Notice**##
+##**Important Licensing Notice**##
 
 `Linux-Arctis-7-Plus-Chatmix` uses the GPL license. While the GPL license does permit commercial use,
 it is **strongly discouraged** to reuse the work herein for any for-profit purpose as it relates to the usage
