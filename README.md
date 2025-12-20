@@ -63,10 +63,14 @@ which are both fairly common on modern Linux systems out of the box.
 <br>
 
 ## Installation
+
+Run this to install.
+```shell
+curl -fsSL 'https://raw.githubusercontent.com/cclloyd/linux-steelseries-chatmix/refs/heads/main/install.sh' | sudo bash
+``` 
+If you (rightly) don't feel safe running a script direclty from the internet, clone the repo and run `install.sh` to copy the binary.
+
 <br>
-
-Run `install.sh` as root to copy the binary.
-
 After that, you can run `sudo chatmix install` ad a logged in desktop user to setup the service for the current user with a detected headset. Reboot once finished.
 
 After you reboot, the service would have already been enabled and your ChatMix should now be working.
