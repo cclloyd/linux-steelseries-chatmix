@@ -2,7 +2,7 @@
 
 Forked from [awth13/Linux-Arctis-7-Plus-ChatMix](https://github.com/awth13/Linux-Arctis-7-Plus-ChatMix).
 
-##***Important Licensing Notice**##
+##**Important Licensing Notice**##
 
 `Linux-Arctis-7-Plus-Chatmix` uses the GPL license. While the GPL license does permit commercial use,
 it is **strongly discouraged** to reuse the work herein for any for-profit purpose as it relates to the usage
@@ -11,9 +11,20 @@ of a third party proprietary hardware device.
 The device itself has not been reverse-engineered for this purpose, nor has the proprietary GG Sonar Software typically
 required to use it. 
 
+## TLDR
+```shell
+curl -fsSL 'https://raw.githubusercontent.com/cclloyd/linux-steelseries-chatmix/refs/heads/main/install.sh' | sudo bash
+sudo chatmix install
+chatmix start
+```
+
 
 ## Overview
 <br>
+
+
+This is a wrapper that helps to manage the service provided by the Linux-Arctis-7-Plus-ChatMix repo.  It facitilates setting udev rules and managing the systemd service. And supports automatic detection of more headsets.
+
 The SteelSeries Arctis series of headsets include a hardware modulation knob for 'chatmix' on the headset.
 This allows the user to 'mix' the volume of two different devices on their system, named "Game" and "Chat".
 
