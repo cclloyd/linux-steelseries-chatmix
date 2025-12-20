@@ -292,21 +292,20 @@ class ChatMixManager:
 
     def install_udev_rules(self):
         udev_path = Path("/etc/udev/rules.d/")
-        rules_path = udev_path / f"{self.user['name']}-steeleries-{self.headset_id}.rules"
-        if not udev_path.exists():
-            print(f'Installing udev rules for {usb.util.get_string(self.device, self.device.iProduct)} to {rules_path}')
-            udev_rules = f'SUBSYSTEM=="usb", ATTRS{{idVendor}}=="{VENDOR_ID:04x}", ATTRS{{idProduct}}=="{self.device.idProduct:04x}", OWNER="{self.user['name']}", GROUP="{self.user['name']}", MODE="0664"\n' \
-                f'ACTION=="add", SUBSYSTEM=="usb", ATTRS{{idVendor}}=="{VENDOR_ID:04x}", ATTRS{{idProduct}}=="{self.device.idProduct:04x}", TAG+="systemd", ENV{{SYSTEMD_ALIAS}}="/dev/arctis7"\n' \
-                f'ACTION=="remove", SUBSYSTEM=="usb", ENV{{PRODUCT}}=="{VENDOR_ID:04x}/{self.device.idProduct:04x}/*", TAG+="systemd"\n'
-            with open(rules_path, "w") as f:
-                f.write(udev_rules)
-            subprocess.run(['sudo', 'udevadm', 'control', '--reload'], check=True)
-            subprocess.run(['sudo', 'udevadm', 'trigger'], check=True)
-            print(f'udev rules installed for {self.user['name']}-{self.headset_id} . A reboot will be required for changes to take effect.')
+        rules_path = udev_path / f"{self.user['uid']}-steeleries-{self.headset_id}.rules"
+        print(f'Installing udev rules for {usb.util.get_string(self.device, self.device.iProduct)} to {rules_path}')
+        contents = f'SUBSYSTEM=="usb", ATTRS{{idVendor}}=="{VENDOR_ID:04x}", ATTRS{{idProduct}}=="{self.device.idProduct:04x}", OWNER="{self.user['name']}", GROUP="{self.user['name']}", MODE="0664"\n' \
+            f'ACTION=="add", SUBSYSTEM=="usb", ATTRS{{idVendor}}=="{VENDOR_ID:04x}", ATTRS{{idProduct}}=="{self.device.idProduct:04x}", TAG+="systemd", ENV{{SYSTEMD_ALIAS}}="/dev/arctis7"\n' \
+            f'ACTION=="remove", SUBSYSTEM=="usb", ENV{{PRODUCT}}=="{VENDOR_ID:04x}/{self.device.idProduct:04x}/*", TAG+="systemd"\n'
+        with open(rules_path, "w") as f:
+            f.write(contents)
+        subprocess.run(['sudo', 'udevadm', 'control', '--reload'], check=True)
+        subprocess.run(['sudo', 'udevadm', 'trigger'], check=True)
+        print(f'udev rules installed for {self.user['name']}-{self.headset_id} . A reboot will be required for changes to take effect.')
 
     def uninstall_udev_rules(self):
         udev_path = Path("/etc/udev/rules.d/")
-        rules_path = udev_path / f"{self.user['name']}-steeleries-{self.headset_id}.rules"
+        rules_path = udev_path / f"{self.user['uid']}-steeleries-{self.headset_id}.rules"
         if rules_path.exists():
             rules_path.unlink()
             subprocess.run(['sudo', 'udevadm', 'control', '--reload'])
@@ -316,7 +315,7 @@ class ChatMixManager:
     def install_systemd_unit(self):
         contents = f'[Unit]\n' \
                 f'Description={self.headset_name} ChatMix\n' \
-                f'Requisite=dev-arctis7.device\n' \
+                f'#BindsTo=dev-arctis7.device\n' \
                 f'After=dev-arctis7.device\n' \
                 f'StartLimitIntervalSec=1m\n' \
                 f'StartLimitBurst=5\n' \
@@ -335,7 +334,7 @@ class ChatMixManager:
             print(f'Installing systemd unit for {usb.util.get_string(self.device, self.device.iProduct)} to {self.systemd_unit}')
             with open(self.systemd_unit, 'w') as f:
                 f.write(contents)
-            os.chmod(self.systemd_unit, 0o755)
+            os.chmod(self.systemd_unit, 0o644)
             os.chown(self.systemd_unit, self.user['uid'], self.user['uid'])
             subprocess.run(['sudo', 'systemctl', '--user', f'--machine={self.user['name']}@.host', 'enable', self.systemd_unit.name], check=True)
         else:
@@ -387,7 +386,7 @@ def run_main():
         mgr.install_udev_rules()
         mgr.install_systemd_unit()
 
-    if args.command == 'uninstall':
+    elif args.command == 'uninstall':
         mgr.find_desktop_user()
         if os.getuid() != 0:
             print('Error: This must be ran as a desktop user with sudo.')
@@ -399,7 +398,7 @@ def run_main():
         mgr.uninstall_udev_rules()
         mgr.uninstall_systemd_unit()
 
-    if args.command == 'purge':
+    elif args.command == 'purge':
         mgr.find_desktop_user()
         if os.getuid() != 0:
             print('Error: This must be ran as a desktop user with sudo.')
@@ -409,7 +408,7 @@ def run_main():
             sys.exit(1)
         # TODO: purge all systemd units and udev rules for the user. Maybe have --all-users, -a to do everyone
 
-    if args.command in ('start', 'stop', 'restart', 'enable', 'disable'):
+    elif args.command in ('start', 'stop', 'restart', 'enable', 'disable'):
         mgr.find_desktop_user()
         if mgr.is_root:
             print('Error: This must be ran as a logged in desktop user.')
@@ -417,7 +416,7 @@ def run_main():
         mgr.find_headset(args.device)
         if mgr.device:
             service_name = f'chatmix-{mgr.headset_id}.service'
-            subprocess.run(['systemctl', '--user', args.command, service_name], check=True)
+            subprocess.run(['systemctl', '--user', f'--machine={mgr.user['name']}@.host', args.command, service_name], check=True)
             print(f'{args.command.capitalize()}ed {service_name}')
         else:
             print('No headset found.')
