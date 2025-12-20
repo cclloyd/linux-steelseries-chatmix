@@ -19,7 +19,8 @@
     You should have received a copy of the GNU General Public License
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
     """
-
+import argparse
+import getpass
 import logging
 import os
 import re
@@ -30,6 +31,13 @@ from pathlib import Path
 from time import sleep
 
 import usb.core
+
+
+parser = argparse.ArgumentParser(description="SteelSeries ChatMix Manager")
+parser.add_argument("command", help="Command to execute [status, start, stop, restart, install, uninstall]")
+parser.add_argument("-d", "--device", help="Specify a device ID (vendor:product)")
+parser.add_argument("-f", "--force", action="store_true", help="Force the operation (e.g., overwrite existing files)")
+args = parser.parse_args()
 
 # SteelSeries USB VendorID
 VENDOR_ID = 0x1038
@@ -54,43 +62,33 @@ def is_arctis_headset(device):
     try:
         if device.idProduct in STEELSERIES_DEVICES.keys():
             return True
-        return 'Arctis' in usb.util.get_string(device, device.iProduct) and '7' in usb.util.get_string(device,
-                                                                                                       device.iProduct)
+        return 'Arctis' in usb.util.get_string(device, device.iProduct) and '7' in usb.util.get_string(device, device.iProduct)
     except:
         return False
 
 
 class Arctis7PlusChatMix:
-    def __init__(self, device=None):
-
+    mgr = None
+    def __init__(self, manager: 'ChatMixManager'):
+        self.mgr = manager
         # set to receive signal from systemd for termination
         signal.signal(signal.SIGTERM, self.__handle_sigterm)
 
         self.log = self._init_log()
         self.log.info("Initializing a7chatmix...")
 
-        # Grabs first Arctis device. Only supports the Arctis 7 family of devices
-        try:
-            self.dev = device or usb.core.find(idVendor=VENDOR_ID, custom_match=is_arctis_headset)
-            self.name = usb.util.get_string(self.dev, self.dev.iProduct)
-
-            # print(self.dev)
-            # print(self.dev[0].interfaces())
-            # print(self.dev[0].interfaces()[-1])
-            # exit(0)
-        except Exception as e:
-            self.log.error("""Failed to identify the Arctis 7 device.
-            Please ensure it is connected.\n
-            Please note: This program only supports the Arctis 7 family of devices.""")
-            self.die_gracefully(trigger="Couldn't find arctis7 model")
+        if not self.mgr.device:
+            raise RuntimeError('Error: installed headset not found.')
+        if self.mgr.is_root:
+            raise RuntimeError('Error: must be run as logged in desktop user.')
 
         # select its interface and USB endpoint, and capture the endpoint address
         try:
-            if STEELSERIES_DEVICES.get(self.dev.idProduct, None):
-                self.interface = self.dev[0].interfaces()[STEELSERIES_DEVICES.get(self.dev.idProduct, None)['dial']]
+            if STEELSERIES_DEVICES.get(self.mgr.device.idProduct, None):
+                self.interface = self.mgr.device[0].interfaces()[STEELSERIES_DEVICES.get(self.mgr.device.idProduct, None)['dial']]
             else:
                 # Attempts to select the interface of the ChatMix dial; usually this is the last enumerated HID interface.
-                self.interface = [i for i in self.dev[0].interfaces() if i.bInterfaceClass == 3][-1]
+                self.interface = [i for i in self.mgr.device[0].interfaces() if i.bInterfaceClass == 3][-1]
             self.interface_num = self.interface.bInterfaceNumber
             self.endpoint = self.interface.endpoints()[0]
             self.addr = self.endpoint.bEndpointAddress
@@ -100,8 +98,8 @@ class Arctis7PlusChatMix:
             self.die_gracefully(trigger="identification of USB endpoint")
 
         # detach if the device is active
-        if self.dev.is_kernel_driver_active(self.interface_num):
-            self.dev.detach_kernel_driver(self.interface_num)
+        if self.mgr.device.is_kernel_driver_active(self.interface_num):
+            self.mgr.device.detach_kernel_driver(self.interface_num)
 
         self.VAC = self._init_VAC()
 
@@ -112,7 +110,7 @@ class Arctis7PlusChatMix:
         stdout_handler.setLevel(logging.DEBUG)
         stdout_handler.setFormatter(logging.Formatter('%(levelname)8s | %(message)s'))
         log.addHandler(stdout_handler)
-        return (log)
+        return log
 
     def _init_VAC(self):
         """Get name of default sink, establish virtual sink
@@ -144,7 +142,7 @@ class Arctis7PlusChatMix:
             in pactl list short sinks regex matching.
             Likely no match found for device, check traceback.
             """, exc_info=True)
-            self.die_gracefully(trigger="No Arctis device match")
+            return self.die_gracefully(trigger="No Arctis device match")
 
         # Destroy virtual sinks if they already existed incase of previous failure:
         try:
@@ -161,7 +159,7 @@ class Arctis7PlusChatMix:
             os.system(f"""pw-cli create-node adapter '{{ 
                 factory.name=support.null-audio-sink 
                 node.name=Arctis_Game 
-                node.description="{self.name} Game" 
+                node.description="{self.mgr.headset_name} Game" 
                 media.class=Audio/Sink 
                 monitor.channel-volumes=true 
                 object.linger=true 
@@ -172,7 +170,7 @@ class Arctis7PlusChatMix:
             os.system(f"""pw-cli create-node adapter '{{ 
                 factory.name=support.null-audio-sink 
                 node.name=Arctis_Chat 
-                node.description="{self.name} Chat" 
+                node.description="{self.mgr.headset_name} Chat" 
                 media.class=Audio/Sink 
                 monitor.channel-volumes=true 
                 object.linger=true 
@@ -215,14 +213,14 @@ class Arctis7PlusChatMix:
 
         self.log.info("Reading modulator USB input started")
         self.log.info("-" * 45)
-        self.log.info(f"{self.name} ChatMix Enabled!")
+        self.log.info(f"{self.mgr.headset_name} ChatMix Enabled!")
         self.log.info("-" * 45)
         while True:
             try:
                 # read the input of the USB signal. Signal is sent in 64-bit interrupt packets.
                 # read_input[1] returns value to use for default device volume
                 # read_input[2] returns the value to use for virtual device volume
-                read_input = self.dev.read(self.addr, 64)
+                read_input = self.mgr.device.read(self.addr, 64)
                 default_device_volume = "{}%".format(read_input[1])
                 virtual_device_volume = "{}%".format(read_input[2])
 
@@ -240,7 +238,7 @@ class Arctis7PlusChatMix:
     def __handle_sigterm(self, sig, frame):
         self.die_gracefully()
 
-    def die_gracefully(self, sink_creation_fail=False, trigger=None):
+    def die_gracefully(self, sink_creation_fail=False, trigger=None, **kwargs):
         """Kill the process and remove the VACs
         on fatal exceptions or SIGTERM / SIGINT
         """
@@ -261,43 +259,63 @@ class Arctis7PlusChatMix:
             sys.exit(1)
         else:
             self.log.info("-" * 45)
-            self.log.info(f"{self.name} ChatMix shut down gracefully... Bye Bye!")
+            self.log.info(f"{self.mgr.headset_name} ChatMix shut down gracefully... Bye Bye!")
             self.log.info("-" * 45)
             sys.exit(0)
-
-
-def find_desktop_user():
-    out = subprocess.check_output(
-        ['loginctl', 'list-users', '--no-legend'],
-        text=True
-    ).strip().splitlines()
-    # Pick the first user listed, assuming they're the logged in desktop user
-    res = out[0].split() if out else None
-    return {'uid': res[0], 'name': res[1]}
 
 
 class ChatMixManager:
     device = None
     user = {'name': 'root', 'uid': 0}
+    headset_name = None
+    headset_id = None
+    service = None
 
-    def install_udev_rules(self, device):
-        UDEV_DIR = Path("/etc/udev/rules.d/")
-        headset_name = usb.util.get_string(device, device.iProduct).lower().replace(' ', '')
-        UDEV_CONFIG = UDEV_DIR / f"{self.user['name']}-steeleries-{headset_name}.rules"
-        if not UDEV_DIR.exists():
-            print(f'Installing udev rules for {usb.util.get_string(device, device.iProduct)} to {UDEV_CONFIG}')
-            udev_rules = f'SUBSYSTEM=="usb", ATTRS{{idVendor}}=="{VENDOR_ID:04x}", ATTRS{{idProduct}}=="{device.idProduct:04x}", OWNER="{self.user['name']}", GROUP="{self.user['name']}", MODE="0664"\n' \
-                f'ACTION=="add", SUBSYSTEM=="usb", ATTRS{{idVendor}}=="{VENDOR_ID:04x}", ATTRS{{idProduct}}=="{device.idProduct:04x}", TAG+="systemd", ENV{{SYSTEMD_ALIAS}}="/dev/arctis7"\n' \
-                f'ACTION=="remove", SUBSYSTEM=="usb", ENV{{PRODUCT}}=="{VENDOR_ID:04x}/{device.idProduct:04x}/*", TAG+="systemd"\n'
-            with open(UDEV_DIR / UDEV_CONFIG, "w") as f:
+    @property
+    def is_root(self):
+        return self.user['uid'] == 0
+
+    def find_desktop_user(self):
+        self.user['uid'] = int(os.environ.get('SUDO_UID', os.getuid()))
+        self.user['name'] = os.environ.get('SUDO_USER', getpass.getuser())
+
+    def find_headset(self, device_id=None):
+        if device_id:
+            dev = usb.core.find(idVendor=int(device_id.split(':')[0], 16), idProduct=int(device_id.split(':')[1], 16))
+        else:
+            dev = usb.core.find(idVendor=VENDOR_ID, custom_match=is_arctis_headset)
+        if dev:
+            self.device = dev
+            self.headset_name = usb.util.get_string(dev, dev.iProduct)
+            self.headset_id = usb.util.get_string(dev, dev.iProduct).lower().replace(' ', '')
+            print(f'SteelSeries {self.headset_name} headset found.')
+
+    def install_udev_rules(self):
+        udev_path = Path("/etc/udev/rules.d/")
+        rules_path = udev_path / f"{self.user['name']}-steeleries-{self.headset_id}.rules"
+        if not udev_path.exists():
+            print(f'Installing udev rules for {usb.util.get_string(self.device, self.device.iProduct)} to {rules_path}')
+            udev_rules = f'SUBSYSTEM=="usb", ATTRS{{idVendor}}=="{VENDOR_ID:04x}", ATTRS{{idProduct}}=="{self.device.idProduct:04x}", OWNER="{self.user['name']}", GROUP="{self.user['name']}", MODE="0664"\n' \
+                f'ACTION=="add", SUBSYSTEM=="usb", ATTRS{{idVendor}}=="{VENDOR_ID:04x}", ATTRS{{idProduct}}=="{self.device.idProduct:04x}", TAG+="systemd", ENV{{SYSTEMD_ALIAS}}="/dev/arctis7"\n' \
+                f'ACTION=="remove", SUBSYSTEM=="usb", ENV{{PRODUCT}}=="{VENDOR_ID:04x}/{self.device.idProduct:04x}/*", TAG+="systemd"\n'
+            with open(rules_path, "w") as f:
                 f.write(udev_rules)
             subprocess.run(['sudo', 'udevadm', 'control', '--reload'], check=True)
             subprocess.run(['sudo', 'udevadm', 'trigger'], check=True)
-            print(f'udev rules installed for user {self.user["name"]}.  A reboot will be required for changes to take effect.')
+            print(f'udev rules installed for {self.user['name']}-{self.headset_id} . A reboot will be required for changes to take effect.')
+
+    def uninstall_udev_rules(self):
+        udev_path = Path("/etc/udev/rules.d/")
+        rules_path = udev_path / f"{self.user['name']}-steeleries-{self.headset_id}.rules"
+        if rules_path.exists():
+            rules_path.unlink()
+            subprocess.run(['sudo', 'udevadm', 'control', '--reload'])
+            subprocess.run(['sudo', 'udevadm', 'trigger'])
+            print(f'udev rules for {self.user['name']}-{self.headset_id} removed. A reboot will be required for changes to take effect.')
 
     def install_systemd_unit(self):
         contents = f'[Unit]\n' \
-                f'Description=Arctis 7+ ChatMix\n' \
+                f'Description={self.headset_name} ChatMix\n' \
                 f'Requisite=dev-arctis7.device\n' \
                 f'After=dev-arctis7.device\n' \
                 f'StartLimitIntervalSec=1m\n' \
@@ -305,47 +323,133 @@ class ChatMixManager:
                 '\n' \
                 f'[Service]\n' \
                 f'Type=simple\n' \
-                f'ExecStart=/usr/local/bin/chatmix.py\n' \
+                f'ExecStart={Path(__file__).resolve()} daemon --device {self.device.idVendor:04x}:{self.device.idProduct:04x}\n' \
                 f'Restart=on-failure\n' \
-                f'RestartSec=1\n' \
+                f'RestartSec=5\n' \
                 '\n' \
                 f'[Install]\n' \
                 f'WantedBy=dev-arctis7.device\n'
-        filename = 'chatmix.service'
         systemd_dir = Path('/home') / self.user['name'] / '.config' / 'systemd' / 'user'
+        filename = f'chatmix-{self.headset_id}.service'
+        file_path = systemd_dir / filename
         if not systemd_dir.exists():
             systemd_dir.mkdir(parents=True, exist_ok=True)
-        if not (systemd_dir / filename).exists():
-            print(f'Installing systemd unit for {usb.util.get_string(self.device, self.device.iProduct)} to {systemd_dir / filename}')
-            with open(systemd_dir / filename, 'w') as f:
+        if not file_path.exists() or args.force:
+            print(f'Installing systemd unit for {usb.util.get_string(self.device, self.device.iProduct)} to {file_path}')
+            with open(file_path, 'w') as f:
                 f.write(contents)
-            subprocess.run(['sudo', '-u', self.user['name'], 'systemctl', '--user', 'enable', filename, '--now'], check=True)
+            os.chmod(file_path, 0o755)
+            os.chown(file_path, self.user['uid'], self.user['uid'])
+            subprocess.run(['sudo', '-u', self.user['name'], 'systemctl', '--user', 'enable', filename], check=True)
+        else:
+            print(f'{filename} already exists in systemd user directory.  Skipping installation. (Use -f to overwrite.)')
 
-    def start(self):
-        a7pcm_service = Arctis7PlusChatMix(self.device)
+    def uninstall_systemd_unit(self):
+        systemd_dir = Path('/home') / self.user['name'] / '.config' / 'systemd' / 'user'
+        filename = f'chatmix-{self.headset_id}.service'
+        file_path = systemd_dir / filename
+        subprocess.run(['sudo', '-u', self.user['name'], 'systemctl', '--user', 'disable', filename])
+        if file_path.exists():
+            file_path.unlink()
+            print(f'{filename} already exists in systemd user directory.  Skipping installation. (Use -f to overwrite.)')
+
+    def run_chatmix(self):
+        a7pcm_service = Arctis7PlusChatMix(self)
+        self.service = a7pcm_service
         a7pcm_service.start_modulator_signal()
 
-# init
-if __name__ == '__main__':
-    if os.geteuid() != 0:
-        print("This script must be run as root.")
-        sys.exit(1)
+    def print_status(self):
+        self.find_desktop_user()
+        self.find_headset(args.device)
+        if self.device is None:
+            print("No headsets found.")
 
+        if self.systemd_unit.exists():
+            subprocess.run(['systemctl', '--user', 'status', self.systemd_unit.name], check=True)
+
+    @property
+    def systemd_unit(self):
+        systemd_dir = Path('/home') / self.user['name'] / '.config' / 'systemd' / 'user'
+        filename = f'chatmix-{self.headset_id}.service'
+        return systemd_dir / filename
+
+
+
+def run_main():
     mgr = ChatMixManager()
-    mgr.user = find_desktop_user()
-    while True:
-        try:
-            if not mgr.device:
-                device = usb.core.find(idVendor=VENDOR_ID, custom_match=is_arctis_headset)
-                if device:
-                    print('SteelSeries Arctis 7 headset found.')
-                    mgr.device = device
-                    mgr.install_udev_rules(mgr.device)
-                    mgr.install_systemd_unit()
-                    mgr.start()
-            sleep(3)
-        except KeyboardInterrupt:
-            exit(0)
-        except Exception as e:
-            print(e)
-            exit(1)
+
+    if args.command == 'install':
+        mgr.find_desktop_user()
+        if os.getuid() != 0:
+            print('Error: This must be ran as a desktop user with sudo.')
+            sys.exit(1)
+        if mgr.is_root:
+            print('You cannot install a headset as root. Run as a logged in desktop user with sudo.')
+            sys.exit(1)
+        mgr.find_headset(args.device)
+        mgr.install_udev_rules()
+        mgr.install_systemd_unit()
+
+    if args.command == 'uninstall':
+        mgr.find_desktop_user()
+        if os.getuid() != 0:
+            print('Error: This must be ran as a desktop user with sudo.')
+            sys.exit(1)
+        if mgr.is_root:
+            print('You cannot uninstall a headset as root. Run as a logged in desktop user with sudo.')
+            sys.exit(1)
+        mgr.find_headset(args.device)
+        mgr.uninstall_udev_rules()
+        mgr.uninstall_systemd_unit()
+
+    if args.command == 'purge':
+        mgr.find_desktop_user()
+        if os.getuid() != 0:
+            print('Error: This must be ran as a desktop user with sudo.')
+            sys.exit(1)
+        if mgr.is_root:
+            print('Error: run as a logged in desktop user with sudo.')
+            sys.exit(1)
+        # TODO: purge all systemd units and udev rules for the user. Maybe have --all-users, -a to do everyone
+
+    if args.command in ('start', 'stop', 'restart'):
+        mgr.find_desktop_user()
+        if mgr.is_root:
+            print('Error: This must be ran as a logged in desktop user.')
+            sys.exit(1)
+        mgr.find_headset(args.device)
+        if mgr.device:
+            service_name = f'chatmix-{mgr.headset_name}.service'
+            subprocess.run(['systemctl', '--user', args.command, service_name], check=True)
+            print(f'{args.command.capitalize()}ed {service_name}')
+        else:
+            print('No headset found.')
+            sys.exit(1)
+
+    elif args.command == 'status':
+        mgr.print_status()
+
+    elif args.command == 'daemon':
+        mgr.find_desktop_user()
+        while True:
+            try:
+                if not mgr.device:
+                    mgr.find_headset(args.device)
+                    if mgr.device:
+                        print(f'SteelSeries {mgr.headset_name} headset found.')
+                        mgr.run_chatmix()
+                sleep(3)
+            except KeyboardInterrupt:
+                exit(0)
+            except Exception as e:
+                print(e)
+                if mgr.service:
+                    try:
+                        mgr.service.die_gracefully()
+                    except:
+                        pass
+                exit(1)
+
+
+if __name__ == '__main__':
+    run_main()

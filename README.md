@@ -48,7 +48,14 @@ At startup of the daemon the user must disconnect and reconnect the USB dongle f
 ## Requirements
 <br>
 
-The service itself depends on the [PyUSB](https://github.com/walac/pyusb) package. 
+- A distro using systemd and PipeWire audio engine
+  - Examples:
+    - Ubuntu 22+
+    - Debian 12+
+    - Fedora 34+
+- PulseAudio utils (Available as `pulseaudio-utils` in most distros)
+- Python3
+- PyUSB (available as `pyusb` in pip or `python3-usb` in various distros.)
 
 In order for the VAC to be initialized and for the volumes to be controlled, the system requires **Pipewire** (and the underlying **PulseAudio**)
 which are both fairly common on modern Linux systems out of the box.
@@ -58,43 +65,30 @@ which are both fairly common on modern Linux systems out of the box.
 ## Installation
 <br>
 
-Python 3 & [PyUSB](https://github.com/pyusb/pyusb) required. 
+Run `install.sh` as root to copy the binary.
 
-- Debian/Ubuntu: `sudo apt install python3-usb`
-- Pip: `pip3 install pyusb`
+After that, you can run `sudo chatmix install` ad a logged in desktop user to setup the service for the current user with a detected headset. Reboot once finished.
 
-Run `install-a7pcm.sh` as your desktop user in the project root directory. You may need to provide your `sudo` password during installation for copying the udev rule for your device.
+After you reboot, the service would have already been enabled and your ChatMix should now be working.
 
-**DISCONNECT DEVICE BEFORE INSTALLING**
-
-To uninstall, set the `UNINSTALL` environment variable while calling the install script, e.g.,
-
-```bash
-UNINSTALL= ./install.sh
-```
-
-**RECONNECT DEVICE ONCE INSTALL IS COMPLETE**
-
-There may be a short delay before the device becomes available after reconnecting. Use `systemctl --user status arctis7pcm.service` to check the service
-is running properly.
+You can check the status using `chatmix status`.
 
 <br>
 
 ## Implementation - How it works
-<br>
 
-The service first initializes the VAC by making direct calls to PulseWire `pw-cli` to create `nodes` and link them to the default audio device.
+From Linux-Arctis-7-Plus-ChatMix:
+> The service first initializes the VAC by making direct calls to PulseWire `pw-cli` to create `nodes` and link them to the default audio device.
+> 
+> The service relies on the [PyUSB](https://github.com/walac/pyusb) package to read interrupt transfers from the headset's USB dongle. 
+> 
+> The headset sends three bytes, the second and third of which are the volume values for the dial's two directions (toward 'Chat' down, toward 'Game' up). 
+> 
+> The volumes are processed by the service and passed to the audio system via `pactl`. 
+> 
+> The service will automatically set "Arctis 7 Game" as the default device on startup.
 
-The service relies on the [PyUSB](https://github.com/walac/pyusb) package to read interrupt transfers from the headset's USB dongle.
-
-The headset sends three bytes, the second and third of which are the volume values for the dial's two directions (toward 'Chat' down, toward 'Game' up).
-
-The volumes are processed by the service and passed to the audio system via `pactl`.
-
-The service will automatically set "Arctis 7+ Game" as the default device on startup.
-
-The service supports both the Arctis 7+ and Nova 7 WOW Edition headsets by detecting their respective USB product IDs.
-
+The `chatmix` binary is a simple python script wrapper around that to make it easier to install/manage the service and udev rules.
 
 
 # Acknowledgements
