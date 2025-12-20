@@ -1,8 +1,9 @@
 #!/bin/bash
-#     Copyright (C) 2022  birdybirdonline & awth13 - see LICENSE.md
+#     Copyright (C) 2022  birdybirdonline & awth13 & cclloyd - see LICENSE.md
 #     @ https://github.com/birdybirdonline/Linux-Arctis-7-Plus-ChatMix
     
 #     Contact via Github in the first instance
+#     https://github.com/cclloyd
 #     https://github.com/birdybirdonline
 #     https://github.com/awth13
 
@@ -21,11 +22,11 @@ if [ -f "chatmix.py" ]; then # Check if binary is present and install manually
 else
     echo "Installing from GitHub..."
     curl -L -o "${SCRIPT_DIR}chatmix" "https://raw.githubusercontent.com/cclloyd/linux-steelseries-chatmix/refs/heads/main/chatmix.py"
-    chmod +x "${SCRIPT_DIR}chatmix"
     if [ $? -eq 0 ]; then
         echo "Successfully downloaded chatmix.py to ${SCRIPT_DIR}"
+        chmod +x "${SCRIPT_DIR}chatmix"
     else
-        echo "Failed to download install.sh. Try cloning the repo and running locally instead."
+        echo "Failed to download chatmix.py. Try cloning the repo and running locally instead."
         exit 1
     fi
 fi
