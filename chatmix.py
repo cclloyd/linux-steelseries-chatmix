@@ -34,7 +34,7 @@ import usb.core
 
 
 parser = argparse.ArgumentParser(description="SteelSeries ChatMix Manager")
-parser.add_argument("command", help="Command to execute [status, start, stop, restart, install, uninstall]")
+parser.add_argument("command", help="Command to execute [status, start, stop, restart, enable, disable, install, uninstall]")
 parser.add_argument("-d", "--device", help="Specify a device ID (vendor:product)")
 parser.add_argument("-f", "--force", action="store_true", help="Force the operation (e.g., overwrite existing files)")
 args = parser.parse_args()
@@ -409,7 +409,7 @@ def run_main():
             sys.exit(1)
         # TODO: purge all systemd units and udev rules for the user. Maybe have --all-users, -a to do everyone
 
-    if args.command in ('start', 'stop', 'restart'):
+    if args.command in ('start', 'stop', 'restart', 'enable', 'disable'):
         mgr.find_desktop_user()
         if mgr.is_root:
             print('Error: This must be ran as a logged in desktop user.')
@@ -447,6 +447,13 @@ def run_main():
                         pass
                 exit(1)
 
+    elif args.command == 'help':
+            parser.print_help()
+            sys.exit(0)
+
+    else:
+        print('unknown command.')
+        sys.exit(1)
 
 if __name__ == '__main__':
     run_main()
