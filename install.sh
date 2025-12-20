@@ -15,8 +15,9 @@ echo "Installing Arctis 7 ChatMix"
 SCRIPT_DIR="/usr/local/bin/"
 
 if [ -f "chatmix.py" ]; then # Check if binary is present and install manually
-    echo "Installing script to ${SCRIPT_DIR}chatmix."
+    echo "Installing local script to ${SCRIPT_DIR}chatmix."
     cp "chatmix.py" "${SCRIPT_DIR}chatmix"
+    chmod +x "${SCRIPT_DIR}chatmix"
 else
     echo "Installing from GitHub..."
     curl -L -o "${SCRIPT_DIR}chatmix" "https://raw.githubusercontent.com/cclloyd/linux-steelseries-chatmix/refs/heads/main/chatmix.py"
