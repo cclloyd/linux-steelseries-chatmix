@@ -11,9 +11,17 @@ of a third party proprietary hardware device.
 The device itself has not been reverse-engineered for this purpose, nor has the proprietary GG Sonar Software typically
 required to use it. 
 
+## TLDR
+```shell
+curl -fsSL 'https://raw.githubusercontent.com/cclloyd/linux-steelseries-chatmix/refs/heads/main/install.sh' | sudo bash
+sudo chatmix install
+chatmix start
+```
+
 
 ## Overview
 <br>
+
 
 This is a wrapper that helps to manage the service provided by the Linux-Arctis-7-Plus-ChatMix repo.  It facitilates setting udev rules and managing the systemd service. And supports automatic detection of more headsets.
 
