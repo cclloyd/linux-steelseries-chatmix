@@ -329,26 +329,23 @@ class ChatMixManager:
                 '\n' \
                 f'[Install]\n' \
                 f'WantedBy=dev-arctis7.device\n'
-        systemd_dir = Path('/home') / self.user['name'] / '.config' / 'systemd' / 'user'
-        filename = f'chatmix-{self.headset_id}.service'
-        file_path = systemd_dir / filename
-        if not systemd_dir.exists():
-            systemd_dir.mkdir(parents=True, exist_ok=True)
-        if not file_path.exists() or args.force:
-            print(f'Installing systemd unit for {usb.util.get_string(self.device, self.device.iProduct)} to {file_path}')
-            with open(file_path, 'w') as f:
+        if not self.systemd_unit.parent.exists():
+            self.systemd_unit.parent.mkdir(parents=True, exist_ok=True)
+        if not self.systemd_unit.exists() or args.force:
+            print(f'Installing systemd unit for {usb.util.get_string(self.device, self.device.iProduct)} to {self.systemd_unit}')
+            with open(self.systemd_unit, 'w') as f:
                 f.write(contents)
-            os.chmod(file_path, 0o755)
-            os.chown(file_path, self.user['uid'], self.user['uid'])
-            subprocess.run(['sudo', '-u', self.user['name'], 'systemctl', '--user', 'enable', filename], check=True)
+            os.chmod(self.systemd_unit, 0o755)
+            os.chown(self.systemd_unit, self.user['uid'], self.user['uid'])
+            subprocess.run(['sudo', 'systemctl', '--user', f'--machine={self.user['name']}@.host', 'enable', self.systemd_unit.name], check=True)
         else:
-            print(f'{filename} already exists in systemd user directory.  Skipping installation. (Use -f to overwrite.)')
+            print(f'{self.systemd_unit.name} already exists in systemd user directory.  Skipping installation. (Use -f to overwrite.)')
 
     def uninstall_systemd_unit(self):
         systemd_dir = Path('/home') / self.user['name'] / '.config' / 'systemd' / 'user'
         filename = f'chatmix-{self.headset_id}.service'
         file_path = systemd_dir / filename
-        subprocess.run(['sudo', '-u', self.user['name'], 'systemctl', '--user', 'disable', filename])
+        subprocess.run(['sudo', 'systemctl', '--user', f'--machine={self.user['name']}@.host', 'disable', filename])
         if file_path.exists():
             file_path.unlink()
             print(f'{filename} already exists in systemd user directory.  Skipping installation. (Use -f to overwrite.)')
@@ -365,7 +362,7 @@ class ChatMixManager:
             print("No headsets found.")
 
         if self.systemd_unit.exists():
-            subprocess.run(['systemctl', '--user', 'status', self.systemd_unit.name], check=True)
+            subprocess.run(['systemctl', '--user', f'--machine={self.user['name']}@.host', 'status', self.systemd_unit.name], check=True)
 
     @property
     def systemd_unit(self):
@@ -419,7 +416,7 @@ def run_main():
             sys.exit(1)
         mgr.find_headset(args.device)
         if mgr.device:
-            service_name = f'chatmix-{mgr.headset_name}.service'
+            service_name = f'chatmix-{mgr.headset_id}.service'
             subprocess.run(['systemctl', '--user', args.command, service_name], check=True)
             print(f'{args.command.capitalize()}ed {service_name}')
         else:
