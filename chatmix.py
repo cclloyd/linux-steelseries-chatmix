@@ -304,7 +304,7 @@ class ChatMixManager:
         if self.os == 'manjaro' or self.os == 'arch' or self.os == 'archarm' or self.os == 'manjarolinux':
             contents = (
                 f'SUBSYSTEM=="usb", ATTRS{{idVendor}}=="{VENDOR_ID:04x}", ATTRS{{idProduct}}=="{self.device.idProduct:04x}", TAG+="uaccess", MODE="0660"\n'
-                f'ACTION=="add", SUBSYSTEM=="usb", ATTRS{{idVendor}}=="{VENDOR_ID:04x}", ATTRS{{idProduct}}=="{self.device.idProduct:04x}", TAG+="systemd", ENV{{SYSTEMD_ALIAS}}="/dev/arctis7"\n'
+                f'ACTION=="add", SUBSYSTEM=="usb", ATTRS{{idVendor}}=="{VENDOR_ID:04x}", ATTRS{{idProduct}}=="{self.device.idProduct:04x}", ENV{{SYSTEMD_USER_WANTS}}+="chatmix-{self.headset_id}.service"\n'
                 f'ACTION=="remove", SUBSYSTEM=="usb", ENV{{PRODUCT}}=="{VENDOR_ID:04x}/{self.device.idProduct:04x}/*", TAG+="systemd"\n'
             )
         else:
@@ -340,10 +340,7 @@ class ChatMixManager:
                 f'Type=simple\n' \
                 f'ExecStart={Path(__file__).resolve()} daemon --device {self.device.idVendor:04x}:{self.device.idProduct:04x}\n' \
                 f'Restart=on-failure\n' \
-                f'RestartSec=5\n' \
-                '\n' \
-                f'[Install]\n' \
-                f'WantedBy=dev-arctis7.device\n'
+                f'RestartSec=5\n'
         if not self.systemd_unit.parent.exists():
             self.systemd_unit.parent.mkdir(parents=True, exist_ok=True)
         if not self.systemd_unit.exists() or args.force:
@@ -419,6 +416,9 @@ def run_main():
             print('You cannot uninstall a headset as root. Run as a logged in desktop user with sudo.')
             sys.exit(1)
         mgr.find_headset(args.device)
+        # Stop the service if running
+        subprocess.run(['systemctl', '--user', f'--machine={mgr.user['name']}@.host', args.command, f'chatmix-{mgr.headset_id}.service'], check=True)
+
         if args.subcommand == 'udev' or args.subcommand is None:
             mgr.uninstall_udev_rules()
         if args.subcommand == 'systemd' or args.subcommand is None:
