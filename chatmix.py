@@ -27,6 +27,7 @@ import re
 import signal
 import subprocess
 import sys
+import platform
 from pathlib import Path
 from time import sleep
 
@@ -34,7 +35,7 @@ import usb.core
 
 
 parser = argparse.ArgumentParser(description="SteelSeries ChatMix Manager")
-parser.add_argument("command", choices=("status", "start", "stop", "restart", "enable", "disable", "install", "uninstall", "headsets"), help="Command to execute [status, start, stop, restart, enable, disable, install, uninstall, headsets]")
+parser.add_argument("command", choices=("status", "start", "stop", "restart", "enable", "disable", "install", "uninstall", "headsets", "daemon"), help="Command to execute [status, start, stop, restart, enable, disable, install, uninstall, headsets, daemon]")
 parser.add_argument("subcommand", nargs="?", choices=("udev", "systemd"), help="Optional install/uninstall target: [udev, systemd] (defaults to both)")
 parser.add_argument("-d", "--device", help="Specify a device ID (vendor:product)")
 parser.add_argument("-f", "--force", action="store_true", help="Force the operation (e.g., overwrite existing files)")
@@ -266,6 +267,7 @@ class Arctis7PlusChatMix:
 
 
 class ChatMixManager:
+    os = platform.freedesktop_os_release().get('ID', '')
     device = None
     user = {'name': 'root', 'uid': 0}
     headset_name = None
@@ -299,9 +301,18 @@ class ChatMixManager:
         udev_path = Path("/etc/udev/rules.d/")
         rules_path = udev_path / f"{self.user['uid']}-steeleries-{self.headset_id}.rules"
         print(f'Installing udev rules for {usb.util.get_string(self.device, self.device.iProduct)} to {rules_path}')
-        contents = f'SUBSYSTEM=="usb", ATTRS{{idVendor}}=="{VENDOR_ID:04x}", ATTRS{{idProduct}}=="{self.device.idProduct:04x}", OWNER="{self.user['name']}", GROUP="{self.user['name']}", MODE="0664"\n' \
-            f'ACTION=="add", SUBSYSTEM=="usb", ATTRS{{idVendor}}=="{VENDOR_ID:04x}", ATTRS{{idProduct}}=="{self.device.idProduct:04x}", TAG+="systemd", ENV{{SYSTEMD_ALIAS}}="/dev/arctis7"\n' \
-            f'ACTION=="remove", SUBSYSTEM=="usb", ENV{{PRODUCT}}=="{VENDOR_ID:04x}/{self.device.idProduct:04x}/*", TAG+="systemd"\n'
+        if self.os == 'manjaro' or self.os == 'arch' or self.os == 'archarm' or self.os == 'manjarolinux':
+            contents = (
+                f'SUBSYSTEM=="usb", ATTRS{{idVendor}}=="{VENDOR_ID:04x}", ATTRS{{idProduct}}=="{self.device.idProduct:04x}", TAG+="uaccess", MODE="0660"\n'
+                f'ACTION=="add", SUBSYSTEM=="usb", ATTRS{{idVendor}}=="{VENDOR_ID:04x}", ATTRS{{idProduct}}=="{self.device.idProduct:04x}", TAG+="systemd", ENV{{SYSTEMD_ALIAS}}="/dev/arctis7"\n'
+                f'ACTION=="remove", SUBSYSTEM=="usb", ENV{{PRODUCT}}=="{VENDOR_ID:04x}/{self.device.idProduct:04x}/*", TAG+="systemd"\n'
+            )
+        else:
+            contents = (
+                f'SUBSYSTEM=="usb", ATTRS{{idVendor}}=="{VENDOR_ID:04x}", ATTRS{{idProduct}}=="{self.device.idProduct:04x}", OWNER="{self.user["name"]}", GROUP="{self.user["name"]}", MODE="0664"\n'
+                f'ACTION=="add", SUBSYSTEM=="usb", ATTRS{{idVendor}}=="{VENDOR_ID:04x}", ATTRS{{idProduct}}=="{self.device.idProduct:04x}", TAG+="systemd", ENV{{SYSTEMD_ALIAS}}="/dev/arctis7"\n'
+                f'ACTION=="remove", SUBSYSTEM=="usb", ENV{{PRODUCT}}=="{VENDOR_ID:04x}/{self.device.idProduct:04x}/*", TAG+="systemd"\n'
+            )
         with open(rules_path, "w") as f:
             f.write(contents)
         subprocess.run(['sudo', 'udevadm', 'control', '--reload'], check=True)
