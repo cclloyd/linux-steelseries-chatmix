@@ -34,7 +34,8 @@ import usb.core
 
 
 parser = argparse.ArgumentParser(description="SteelSeries ChatMix Manager")
-parser.add_argument("command", help="Command to execute [status, start, stop, restart, enable, disable, install, uninstall]")
+parser.add_argument("command", choices=("status", "start", "stop", "restart", "enable", "disable", "install", "uninstall", "headsets"), help="Command to execute [status, start, stop, restart, enable, disable, install, uninstall, headsets]")
+parser.add_argument("subcommand", nargs="?", choices=("udev", "systemd"), help="Optional install/uninstall target: [udev, systemd] (defaults to both)")
 parser.add_argument("-d", "--device", help="Specify a device ID (vendor:product)")
 parser.add_argument("-f", "--force", action="store_true", help="Force the operation (e.g., overwrite existing files)")
 args = parser.parse_args()
@@ -47,7 +48,7 @@ STEELSERIES_DEVICES = {
         'name': 'Arctis 7+',
         'dial': 7,
     },
-    0x2022: {
+    0x2202: {
         'name': 'Arctis Nova 7',
         'dial': 8,
     },
@@ -279,11 +280,15 @@ class ChatMixManager:
         self.user['uid'] = int(os.environ.get('SUDO_UID', os.getuid()))
         self.user['name'] = os.environ.get('SUDO_USER', getpass.getuser())
 
-    def find_headset(self, device_id=None):
+    def find_headset(self, device_id=None, show=False):
         if device_id:
+            print(f'Searching for headset with id {device_id}...')
             dev = usb.core.find(idVendor=int(device_id.split(':')[0], 16), idProduct=int(device_id.split(':')[1], 16))
         else:
+            print(f'Searching for steelseries headset...')
             dev = usb.core.find(idVendor=VENDOR_ID, custom_match=is_arctis_headset)
+            if show:
+                print(dev)
         if dev:
             self.device = dev
             self.headset_name = usb.util.get_string(dev, dev.iProduct)
@@ -363,6 +368,12 @@ class ChatMixManager:
         if self.systemd_unit.exists():
             subprocess.run(['systemctl', '--user', f'--machine={self.user['name']}@.host', 'status', self.systemd_unit.name], check=True)
 
+    def print_headsets(self):
+        self.find_desktop_user()
+        self.find_headset(args.device, show=True)
+        if self.device is None:
+            print("No headsets found.")
+
     @property
     def systemd_unit(self):
         systemd_dir = Path('/home') / self.user['name'] / '.config' / 'systemd' / 'user'
@@ -383,8 +394,10 @@ def run_main():
             print('You cannot install a headset as root. Run as a logged in desktop user with sudo.')
             sys.exit(1)
         mgr.find_headset(args.device)
-        mgr.install_udev_rules()
-        mgr.install_systemd_unit()
+        if args.subcommand == 'udev' or args.subcommand is None:
+            mgr.install_udev_rules()
+        if args.subcommand == 'systemd' or args.subcommand is None:
+            mgr.install_systemd_unit()
 
     elif args.command == 'uninstall':
         mgr.find_desktop_user()
@@ -395,8 +408,10 @@ def run_main():
             print('You cannot uninstall a headset as root. Run as a logged in desktop user with sudo.')
             sys.exit(1)
         mgr.find_headset(args.device)
-        mgr.uninstall_udev_rules()
-        mgr.uninstall_systemd_unit()
+        if args.subcommand == 'udev' or args.subcommand is None:
+            mgr.uninstall_udev_rules()
+        if args.subcommand == 'systemd' or args.subcommand is None:
+            mgr.uninstall_systemd_unit()
 
     elif args.command == 'purge':
         mgr.find_desktop_user()
@@ -425,8 +440,12 @@ def run_main():
     elif args.command == 'status':
         mgr.print_status()
 
+    elif args.command == 'headsets':
+        mgr.print_headsets()
+
     elif args.command == 'daemon':
         mgr.find_desktop_user()
+        print(f'Running daemon as {mgr.user["name"]} ({mgr.user["uid"]}).')
         while True:
             try:
                 if not mgr.device:

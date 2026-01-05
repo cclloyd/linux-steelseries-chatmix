@@ -66,7 +66,7 @@ At startup of the daemon the user must disconnect and reconnect the USB dongle f
     - Fedora 34+
 - PulseAudio utils (Available as `pulseaudio-utils` in most distros)
 - Python3
-- PyUSB (available as `pyusb` in pip or `python3-usb` in various distros.)
+- PyUSB (available as `pyusb` in pip or `python3-usb` or `python-pyusb` in various distros.)
 
 In order for the VAC to be initialized and for the volumes to be controlled, the system requires **Pipewire** (and the underlying **PulseAudio**)
 which are both fairly common on modern Linux systems out of the box.
