@@ -56,7 +56,11 @@ STEELSERIES_DEVICES = {
     0x227a: {
         'name': 'Nova 7 WOW Edition ',
         'dial': 7,
-    }
+    },
+    0x227e: {
+        'name': 'Arctis Nova 7 Gen 2',
+        'dial': 8,
+    },
 }
 
 
@@ -301,7 +305,7 @@ class ChatMixManager:
         udev_path = Path("/etc/udev/rules.d/")
         rules_path = udev_path / f"{self.user['uid']}-steeleries-{self.headset_id}.rules"
         print(f'Installing udev rules for {usb.util.get_string(self.device, self.device.iProduct)} to {rules_path}')
-        if self.os == 'manjaro' or self.os == 'arch' or self.os == 'archarm' or self.os == 'manjarolinux':
+        if self.os in ['manjaro', 'arch', 'archarm', 'manjarolinux', 'endeavouros']:
             contents = (
                 f'SUBSYSTEM=="usb", ATTRS{{idVendor}}=="{VENDOR_ID:04x}", ATTRS{{idProduct}}=="{self.device.idProduct:04x}", TAG+="uaccess", MODE="0660"\n'
                 f'ACTION=="add", SUBSYSTEM=="usb", ATTRS{{idVendor}}=="{VENDOR_ID:04x}", ATTRS{{idProduct}}=="{self.device.idProduct:04x}", ENV{{SYSTEMD_USER_WANTS}}+="chatmix-{self.headset_id}.service"\n'
